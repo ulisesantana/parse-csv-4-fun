@@ -1,10 +1,8 @@
-
-
-import { faker } from '@faker-js/faker';
-import { Readable, pipeline } from 'stream'
+import {faker} from '@faker-js/faker';
+import {pipeline, Readable} from 'stream'
 import fs from 'fs'
 import path from 'path'
-import { EOL } from 'os'
+import {EOL} from 'os'
 
 /**
  * Class for generating fake user data and writing it to a CSV file.
@@ -15,16 +13,12 @@ class RandomCsvGenerator {
    * @returns {Object}
    */
   static generateFakeUser() {
+    const email = faker.internet.email()
     return {
       id: faker.string.uuid(),
       name: faker.person.fullName(),
-      email: faker.internet.email(),
-      phone: faker.phone.number(),
-      address: faker.location.streetAddress(),
-      city: faker.location.city(),
-      country: faker.location.country(),
-      birthdate: faker.date.birthdate(),
-      avatar: faker.image.avatar()
+      email: Math.random() > 0.1 ? email : email.replace(/@/, '=_='),
+      age: Math.random() > 0.25 ? faker.number.int({min: 18, max: 99}) : faker.number.romanNumeral({min: 18, max: 99}),
     }
   }
 
@@ -54,17 +48,22 @@ class RandomCsvGenerator {
 
   static async run() {
     // node generate-input.mjs 10000000 ./huge.csv
+    if (process.argv.length !== 4) {
+      throw new Error('Usage: node generate-input.mjs <limit> <filePath>')
+    }
+    /*eslint-disable-next-line no-unused-vars */
     const [_node, _module, rawLimit, filePath] = process.argv
     const limit = BigInt(rawLimit.replaceAll('_', ''))
     const outputPath = path.resolve(filePath)
     await RandomCsvGenerator.generate(limit, outputPath)
   }
+
   /**
    * Generator for numbers from 1 to the specified limit.
    * @param {bigint} limit
    * @private
    */
-  static *#iterateTo(limit) {
+  static* #iterateTo(limit) {
     for (let index = 1; index <= limit; index++) {
       yield index
     }
@@ -83,16 +82,16 @@ class RandomCsvGenerator {
   /**
    * Logs progress to the console.
    * @param {number} index
-   * @param {number} logLimit
+   * @param {number} logBatch
    * @param {number} startLoop
    * @private
    */
-  static #logProgress(index, logLimit, startLoop) {
+  static #logProgress(index, logBatch, startLoop) {
     console.log(`Created ${
-      RandomCsvGenerator.#numberWithThousandSeparator(index)
-    } records for huge CSV. (${
-      RandomCsvGenerator.#numberWithThousandSeparator(logLimit)
-    } in ${(Date.now() - startLoop) / 1000} seconds.)`
+        RandomCsvGenerator.#numberWithThousandSeparator(index)
+      } records for huge CSV. (${
+        RandomCsvGenerator.#numberWithThousandSeparator(logBatch)
+      } in ${(Date.now() - startLoop) / 1000} seconds.)`
     )
   }
 
@@ -105,15 +104,20 @@ class RandomCsvGenerator {
    */
   static #generateRecords(limit, generateRecord) {
     const self = this;
+    /**
+     * Generates a stream of CSV records.
+     * @param {AsyncIterable<bigint>} source
+     * @returns {AsyncGenerator<Buffer>}
+     */
     return async function* (source) {
-      const logLimit = 1_000_000
+      const logBatch = 1_000_000
       let startTime = Date.now()
       for await (const index of source) {
         if (index === 1) {
           yield Buffer.from(Object.keys(generateRecord()).join(',') + EOL)
         }
-        if (index % logLimit === 0) {
-          self.#logProgress(index, logLimit, startTime)
+        if (index % logBatch === 0) {
+          self.#logProgress(index, logBatch, startTime)
           startTime = Date.now()
         }
         yield Buffer.from(Object.values(generateRecord()).join(',') + EOL)
@@ -130,6 +134,13 @@ class RandomCsvGenerator {
    * @private
    */
   static #onFinish(limit, startTime, outputPath) {
+    /**
+     * @private
+     *  Callback function to handle the completion of the CSV generation.
+     * @param {Error} error - The error object if an error occurred, otherwise null.
+     * @returns {void}
+     *
+     */
     return (error) => {
       if (error) {
         console.error(`Error generating CSV file: ${error.toString()}`)
