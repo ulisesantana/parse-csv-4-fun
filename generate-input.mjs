@@ -29,8 +29,39 @@ class RandomCsvGenerator {
   }
 
   /**
+   * Generates a CSV file with fake records.
+   * @param {bigint} limit
+   * @param {string} outputPath
+   * @param {Function} [generateRecord=RandomCsvGenerator.generateFakeUser]
+   * @returns {Promise<void>}
+   */
+  static async generate(limit, outputPath, generateRecord = RandomCsvGenerator.generateFakeUser) {
+    if (typeof limit !== 'bigint' || limit <= 0n) {
+      throw new Error(`Invalid amount of records given (${limit})`)
+    }
+    if (fs.existsSync(outputPath)) {
+      await fs.promises.unlink(outputPath)
+    }
+    const startTime = Date.now()
+    // @ts-ignore
+    pipeline(
+      Readable.from(RandomCsvGenerator.#iterateTo(limit)),
+      RandomCsvGenerator.#generateRecords(limit, generateRecord),
+      fs.createWriteStream(outputPath),
+      RandomCsvGenerator.#onFinish(limit, startTime, outputPath)
+    )
+  }
+
+  static async run() {
+    // node generate-input.mjs 10000000 ./huge.csv
+    const [_node, _module, rawLimit, filePath] = process.argv
+    const limit = BigInt(rawLimit.replaceAll('_', ''))
+    const outputPath = path.resolve(filePath)
+    await RandomCsvGenerator.generate(limit, outputPath)
+  }
+  /**
    * Generator for numbers from 1 to the specified limit.
-   * @param {number} limit
+   * @param {bigint} limit
    * @private
    */
   static *#iterateTo(limit) {
@@ -67,7 +98,7 @@ class RandomCsvGenerator {
 
   /**
    * Generates records as a CSV stream.
-   * @param {number} limit
+   * @param {bigint} limit
    * @param {() => object} generateRecord
    * @returns {AsyncGenerator<Buffer>}
    * @private
@@ -92,7 +123,7 @@ class RandomCsvGenerator {
 
   /**
    * Callback for finishing the generation process.
-   * @param {number} limit
+   * @param {bigint} limit
    * @param {number} startTime
    * @param {string} outputPath
    * @returns {(error: Error) => void}
@@ -110,39 +141,11 @@ class RandomCsvGenerator {
       }
     }
   }
-
-  /**
-   * Generates a CSV file with fake records.
-   * @param {bigint} limit
-   * @param {string} outputPath
-   * @param {Function} [generateRecord=RandomCsvGenerator.generateFakeUser]
-   * @returns {Promise<void>}
-   */
-  static async generate(limit, outputPath, generateRecord = RandomCsvGenerator.generateFakeUser) {
-    if (typeof limit !== 'bigint' || limit <= 0n) {
-      throw new Error(`Invalid amount of records given (${limit})`)
-    }
-    if (fs.existsSync(outputPath)) {
-      await fs.promises.unlink(outputPath)
-    }
-    const startTime = Date.now()
-    // @ts-ignore
-    await pipeline(
-      Readable.from(RandomCsvGenerator.#iterateTo(limit)),
-      RandomCsvGenerator.#generateRecords(limit, generateRecord),
-      fs.createWriteStream(outputPath),
-      RandomCsvGenerator.#onFinish(limit, startTime, outputPath)
-    )
-  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
-    // node generate-input.mjs 10000000 ./huge.csv
-    const [_node, _module, rawLimit, filePath] = process.argv
-    const limit = BigInt(rawLimit.replaceAll('_', ''))
-    const outputPath = path.resolve(filePath)
-    await RandomCsvGenerator.generate(limit, outputPath)
+    await RandomCsvGenerator.run()
   } catch (e) {
     console.error(`Error: ${e.toString()}`)
     console.error('Error generating csv file.')
@@ -150,3 +153,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1)
   }
 }
+
