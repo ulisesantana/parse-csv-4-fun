@@ -4,7 +4,10 @@
   "description": "Test script for playing with streams",
   "main": "main.mjs",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "generate:huge-csv": "node generate-input.mjs 100_000_000 ./huge.csv"
   },
   "author": "Ulises Santana",
   "license": "ISC",

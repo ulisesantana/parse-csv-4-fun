@@ -1,5 +1,6 @@
 import {faker} from '@faker-js/faker';
-import {pipeline, Readable} from 'stream'
+import {Readable} from 'stream'
+import {pipeline} from 'stream/promises'
 import fs from 'fs'
 import path from 'path'
 import {EOL} from 'os'
@@ -33,17 +34,32 @@ class RandomCsvGenerator {
     if (typeof limit !== 'bigint' || limit <= 0n) {
       throw new Error(`Invalid amount of records given (${limit})`)
     }
-    if (fs.existsSync(outputPath)) {
+
+    try {
+      await fs.promises.access(outputPath)
       await fs.promises.unlink(outputPath)
+    } catch {
+      // File doesn't exist, which is fine
     }
+
     const startTime = Date.now()
-    // @ts-ignore
-    pipeline(
-      Readable.from(RandomCsvGenerator.#iterateTo(limit)),
-      RandomCsvGenerator.#generateRecords(limit, generateRecord),
-      fs.createWriteStream(outputPath),
-      RandomCsvGenerator.#onFinish(limit, startTime, outputPath)
-    )
+
+    try {
+      await pipeline(
+        Readable.from(RandomCsvGenerator.#iterateTo(limit)),
+        RandomCsvGenerator.#generateRecords(limit, generateRecord),
+        fs.createWriteStream(outputPath)
+      )
+
+      // Log completion
+      console.log(`Generated ${RandomCsvGenerator.#numberWithThousandSeparator(limit)} records for huge CSV in ${(Date.now() - startTime) / 1000} seconds.`)
+      const {size: fileSizeInBytes} = await fs.promises.stat(outputPath)
+      const fileSizeInGB = (fileSizeInBytes / (1024 ** 3)).toFixed(2)
+      console.log(`CSV file generated at ${outputPath} (${fileSizeInGB} GB)`)
+    } catch (error) {
+      console.error(`Error generating CSV file: ${error.toString()}`)
+      throw error
+    }
   }
 
   static async run() {
@@ -121,34 +137,6 @@ class RandomCsvGenerator {
           startTime = Date.now()
         }
         yield Buffer.from(Object.values(generateRecord()).join(',') + EOL)
-      }
-    }
-  }
-
-  /**
-   * Callback for finishing the generation process.
-   * @param {bigint} limit
-   * @param {number} startTime
-   * @param {string} outputPath
-   * @returns {(error: Error) => void}
-   * @private
-   */
-  static #onFinish(limit, startTime, outputPath) {
-    /**
-     * @private
-     *  Callback function to handle the completion of the CSV generation.
-     * @param {Error} error - The error object if an error occurred, otherwise null.
-     * @returns {void}
-     *
-     */
-    return (error) => {
-      if (error) {
-        console.error(`Error generating CSV file: ${error.toString()}`)
-      } else {
-        console.log(`Generated ${RandomCsvGenerator.#numberWithThousandSeparator(limit)} records for huge CSV in ${(Date.now() - startTime) / 1000} seconds.`)
-        const {size: fileSizeInBytes} = fs.statSync(outputPath)
-        const fileSizeInGB = (fileSizeInBytes / (1024 ** 3)).toFixed(2)
-        console.log(`CSV file generated at ${outputPath} (${fileSizeInGB} GB)`)
       }
     }
   }
