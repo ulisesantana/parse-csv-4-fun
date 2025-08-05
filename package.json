@@ -7,6 +7,8 @@
     "test": "node --test",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "generate:huge-csv": "node generate-input.mjs 100_000_000 ./huge.csv"
   },
   "author": "Ulises Santana",
@@ -18,6 +20,9 @@
     "@eslint/js": "^9.30.1",
     "@eslint/markdown": "^6.6.0",
     "eslint": "^9.30.1",
-    "globals": "^16.3.0"
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2"
   }
 }
