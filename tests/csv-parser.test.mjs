@@ -1,7 +1,7 @@
-import {afterEach, beforeEach, describe, test} from 'node:test';
+import { afterEach, beforeEach, describe, test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
-import {CsvParser} from '../src/csv-parser.mjs';
+import { CsvParser } from '../src/csv-parser.mjs';
 
 describe('CsvParser', () => {
   const testInputFile = 'test-input.csv';
@@ -17,67 +17,143 @@ describe('CsvParser', () => {
   });
 
   function cleanupTestFiles() {
-    [testInputFile, testOutputFile].forEach(file => {
+    [testInputFile, testOutputFile].forEach((file) => {
       if (fs.existsSync(file)) {
         fs.unlinkSync(file);
       }
     });
   }
 
-  describe('processUser', () => {
-    test('should process a valid line correctly', () => {
-      const input = 'john doe,john@example.com,25';
-      const expected = 'JOHN DOE,john@example.com,25';
-
-      assert.strictEqual(CsvParser.processUser(input), expected);
-    });
-
-    test('should reject lines with invalid email (without @)', () => {
-      const input = 'jane doe,invalid-email,30';
-
-      assert.strictEqual(CsvParser.processUser(input), null);
-    });
-
-    test('should reject lines with invalid age (non-numeric)', () => {
-      const input = 'bob smith,bob@example.com,not-a-number';
-
-      assert.strictEqual(CsvParser.processUser(input), null);
-    });
-
-    test('should reject lines with negative age', () => {
-      const input = 'alice brown,alice@example.com,-5';
-
-      assert.strictEqual(CsvParser.processUser(input), null);
-    });
-
-    test('should reject lines with missing fields', () => {
-      const input = 'incomplete,missing@fields.com';
-
-      assert.strictEqual(CsvParser.processUser(input), null);
-    });
-
-    test('should reject lines with too many fields', () => {
-      const input = 'too,many,fields@example.com,25,extra';
-
-      assert.strictEqual(CsvParser.processUser(input), null);
-    });
-
-    test('should handle whitespace correctly', () => {
-      const input = ' mary johnson , mary@example.com , 28 ';
-      const expected = 'MARY JOHNSON,mary@example.com,28';
-
-      assert.strictEqual(CsvParser.processUser(input), expected);
-    });
-
-    test('should reject lines with empty fields', () => {
-      const input = ',email@example.com,25';
-
-      assert.strictEqual(CsvParser.processUser(input), null);
-    });
-  });
-
   describe('processUsers', () => {
-    test('should process a valid CSV file correctly', async () => {
+    test('should process a valid line correctly', async () => {
+      const csvContent = `name,email,age
+john doe,john@example.com,25`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 1);
+      assert.strictEqual(stats.skipped, 0);
+
+      const outputContent = fs.readFileSync(testOutputFile, 'utf-8');
+      const lines = outputContent.trim().split('\n');
+
+      assert.strictEqual(lines.length, 2); // header + 1 data line
+      assert.strictEqual(lines[0], 'name,email,age'); // header
+      assert.strictEqual(lines[1], 'JOHN DOE,john@example.com,25'); // processed data
+    });
+
+    test('should reject lines with invalid email (without @)', async () => {
+      const csvContent = `name,email,age
+jane doe,invalid-email,30`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 1);
+
+      // Verify that output file does not exist when no valid lines are processed
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
+    });
+
+    test('should reject lines with invalid age (non-numeric)', async () => {
+      const csvContent = `name,email,age
+bob smith,bob@example.com,not-a-number`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 1);
+
+      // Verify that output file does not exist when no valid lines are processed
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
+    });
+
+    test('should reject lines with negative age', async () => {
+      const csvContent = `name,email,age
+alice brown,alice@example.com,-5`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 1);
+
+      // Verify that output file does not exist when no valid lines are processed
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
+    });
+
+    test('should reject lines with missing fields', async () => {
+      const csvContent = `name,email,age
+incomplete,missing@fields.com`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 1);
+
+      // Verify that output file does not exist when no valid lines are processed
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
+    });
+
+    test('should reject lines with too many fields', async () => {
+      const csvContent = `name,email,age
+too,many,fields@example.com,25,extra`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 1);
+
+      // Verify that output file does not exist when no valid lines are processed
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
+    });
+
+    test('should handle whitespace correctly', async () => {
+      const csvContent = `name,email,age
+ mary johnson , mary@example.com , 28 `;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 1);
+      assert.strictEqual(stats.skipped, 0);
+
+      const outputContent = fs.readFileSync(testOutputFile, 'utf-8');
+      const lines = outputContent.trim().split('\n');
+
+      assert.strictEqual(lines.length, 2); // header + 1 data line
+      assert.strictEqual(lines[0], 'name,email,age'); // header
+      assert.strictEqual(lines[1], 'MARY JOHNSON,mary@example.com,28'); // processed data
+    });
+
+    test('should reject lines with empty fields', async () => {
+      const csvContent = `name,email,age
+,email@example.com,25`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 1);
+
+      // Verify that output file does not exist when no valid lines are processed
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
+    });
+
+    test('should process a valid CSV file with multiple lines correctly', async () => {
       // Create test input file
       const csvContent = `name,email,age
 john doe,john@example.com,25
@@ -97,10 +173,11 @@ bob johnson,bob@example.com,35`;
       const outputContent = fs.readFileSync(testOutputFile, 'utf-8');
       const lines = outputContent.trim().split('\n');
 
-      assert.strictEqual(lines.length, 3);
-      assert.strictEqual(lines[0], 'JOHN DOE,john@example.com,25');
-      assert.strictEqual(lines[1], 'JANE SMITH,jane@example.com,30');
-      assert.strictEqual(lines[2], 'BOB JOHNSON,bob@example.com,35');
+      assert.strictEqual(lines.length, 4); // header + 3 data lines
+      assert.strictEqual(lines[0], 'name,email,age'); // header
+      assert.strictEqual(lines[1], 'JOHN DOE,john@example.com,25'); // processed data
+      assert.strictEqual(lines[2], 'JANE SMITH,jane@example.com,30'); // processed data
+      assert.strictEqual(lines[3], 'BOB JOHNSON,bob@example.com,35'); // processed data
     });
 
     test('should skip invalid lines and process only valid ones', async () => {
@@ -125,9 +202,10 @@ alice brown,alice@example.com,28`;
       const outputContent = fs.readFileSync(testOutputFile, 'utf-8');
       const lines = outputContent.trim().split('\n');
 
-      assert.strictEqual(lines.length, 2);
-      assert.strictEqual(lines[0], 'JOHN DOE,john@example.com,25');
-      assert.strictEqual(lines[1], 'ALICE BROWN,alice@example.com,28');
+      assert.strictEqual(lines.length, 3); // header + 2 valid data lines
+      assert.strictEqual(lines[0], 'name,email,age'); // header
+      assert.strictEqual(lines[1], 'JOHN DOE,john@example.com,25'); // processed data
+      assert.strictEqual(lines[2], 'ALICE BROWN,alice@example.com,28'); // processed data
     });
 
     test('should handle empty file correctly', async () => {
@@ -141,10 +219,8 @@ alice brown,alice@example.com,28`;
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 0);
 
-      // Verify that output file exists but is empty
-      assert.ok(fs.existsSync(testOutputFile));
-      const outputContent = fs.readFileSync(testOutputFile, 'utf-8');
-      assert.strictEqual(outputContent.trim(), '');
+      // Verify that output file does not exist when input is empty
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
     });
 
     test('should reject non-existent file', async () => {
@@ -153,26 +229,47 @@ alice brown,alice@example.com,28`;
           await CsvParser.processUsers('non-existent-file.csv', testOutputFile);
         },
         {
-          code: 'ENOENT'
+          code: 'ENOENT',
         }
       );
     });
 
     test('should use output.csv as default output file', async () => {
       // Create simple input file
-      const csvContent = 'john doe,john@example.com,25';
+      const csvContent = `name,email,age
+john doe,john@example.com,25`;
       fs.writeFileSync(testInputFile, csvContent);
 
       // Process without specifying output file
-      const stats = await CsvParser.processUsers(testInputFile);
+      await CsvParser.processUsers(testInputFile);
 
       // Verify that output.csv was created
       assert.ok(fs.existsSync('output.csv'));
+
+      // Verify content includes header
+      const outputContent = fs.readFileSync('output.csv', 'utf-8');
+      const lines = outputContent.trim().split('\n');
+      assert.strictEqual(lines.length, 2); // header + 1 data line
+      assert.strictEqual(lines[0], 'name,email,age'); // header
 
       // Clean up created file
       if (fs.existsSync('output.csv')) {
         fs.unlinkSync('output.csv');
       }
+    });
+
+    test('should handle CSV file with only header', async () => {
+      const csvContent = `name,email,age`;
+
+      fs.writeFileSync(testInputFile, csvContent);
+
+      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+
+      assert.strictEqual(stats.processed, 0);
+      assert.strictEqual(stats.skipped, 0);
+
+      // Verify that output file does not exist when only header is present
+      assert.strictEqual(fs.existsSync(testOutputFile), false);
     });
   });
 });
