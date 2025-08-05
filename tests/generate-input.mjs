@@ -1,9 +1,9 @@
 import {faker} from '@faker-js/faker';
-import {Readable} from 'stream'
-import {pipeline} from 'stream/promises'
-import fs from 'fs'
-import path from 'path'
-import {EOL} from 'os'
+import {Readable} from 'node:stream'
+import {pipeline} from 'node:stream/promises'
+import fs from 'node:fs'
+import path from 'node:path'
+import {EOL} from 'node:os'
 
 /**
  * Class for generating fake user data and writing it to a CSV file.
