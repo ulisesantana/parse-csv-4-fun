@@ -31,7 +31,8 @@ john doe,john@example.com,25`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 1);
       assert.strictEqual(stats.skipped, 0);
@@ -50,7 +51,8 @@ jane doe,invalid-email,30`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 1);
@@ -65,7 +67,8 @@ bob smith,bob@example.com,not-a-number`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 1);
@@ -80,7 +83,8 @@ alice brown,alice@example.com,-5`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 1);
@@ -95,7 +99,8 @@ incomplete,missing@fields.com`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 1);
@@ -110,7 +115,8 @@ too,many,fields@example.com,25,extra`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 1);
@@ -125,7 +131,8 @@ too,many,fields@example.com,25,extra`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 1);
       assert.strictEqual(stats.skipped, 0);
@@ -144,7 +151,8 @@ too,many,fields@example.com,25,extra`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 1);
@@ -163,7 +171,8 @@ bob johnson,bob@example.com,35`;
       fs.writeFileSync(testInputFile, csvContent);
 
       // Process the file
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       // Verify statistics
       assert.strictEqual(stats.processed, 3);
@@ -192,11 +201,13 @@ alice brown,alice@example.com,28`;
       fs.writeFileSync(testInputFile, csvContent);
 
       // Process the file
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       // Verify statistics
       assert.strictEqual(stats.processed, 2); // john doe and alice brown
       assert.strictEqual(stats.skipped, 3); // invalid line, jane smith, bob johnson
+      assert.strictEqual(stats.total, 5);
 
       // Verify output file content
       const outputContent = fs.readFileSync(testOutputFile, 'utf-8');
@@ -213,7 +224,8 @@ alice brown,alice@example.com,28`;
       fs.writeFileSync(testInputFile, '');
 
       // Process the file
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       // Verify statistics
       assert.strictEqual(stats.processed, 0);
@@ -224,9 +236,11 @@ alice brown,alice@example.com,28`;
     });
 
     test('should reject non-existent file', async () => {
+      const parser = new CsvParser('non-existent-file.csv', testOutputFile);
+
       await assert.rejects(
         async () => {
-          await CsvParser.processUsers('non-existent-file.csv', testOutputFile);
+          await parser.processUsers();
         },
         {
           code: 'ENOENT',
@@ -241,7 +255,8 @@ john doe,john@example.com,25`;
       fs.writeFileSync(testInputFile, csvContent);
 
       // Process without specifying output file
-      await CsvParser.processUsers(testInputFile);
+      const parser = new CsvParser(testInputFile);
+      await parser.processUsers();
 
       // Verify that output.csv was created
       assert.ok(fs.existsSync('output.csv'));
@@ -263,7 +278,8 @@ john doe,john@example.com,25`;
 
       fs.writeFileSync(testInputFile, csvContent);
 
-      const stats = await CsvParser.processUsers(testInputFile, testOutputFile);
+      const parser = new CsvParser(testInputFile, testOutputFile);
+      const stats = await parser.processUsers();
 
       assert.strictEqual(stats.processed, 0);
       assert.strictEqual(stats.skipped, 0);

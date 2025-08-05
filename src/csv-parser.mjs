@@ -3,6 +3,8 @@ import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import * as readline from 'node:readline';
 import { EOL } from 'node:os';
+import { Stats } from './stats.mjs';
+import pMap from 'p-map';
 
 /**
  * @typedef {Object} User
@@ -12,77 +14,75 @@ import { EOL } from 'node:os';
  */
 
 export class CsvParser {
-  static #USER_HEADERS = ['name', 'email', 'age'];
+  #USER_HEADERS = ['name', 'email', 'age'];
+  #nameIndex = -1;
+  #emailIndex = -1;
+  #ageIndex = -1;
+
+  /**
+   * Creates a new CsvParser instance
+   * @param {string} inputFilePath - Path to the input CSV file
+   * @param {string} [outputFilePath] - Path to the output file (default: output.csv in same directory as input)
+   */
+  constructor(inputFilePath, outputFilePath) {
+    this.inputFilePath = inputFilePath;
+    this.outputFilePath =
+      outputFilePath || path.join(path.dirname(inputFilePath), 'output.csv');
+  }
 
   /**
    * Processes a CSV file of users line by line
-   * @param {string} inputFilePath - Path to the input CSV file
-   * @param {string} [outputFilePath] - Path to the output file (default: output.csv)
-   * @returns {Promise<{processed: number, skipped: number}>} - Processing statistics
+   * @returns {Promise<Stats>} - Processing statistics
    */
-  static async processUsers(inputFilePath, outputFilePath) {
-    if (!outputFilePath) {
-      const inputDir = path.dirname(inputFilePath);
-      outputFilePath = path.join(inputDir, 'output.csv');
-    }
-    const stats = {
-      processed: 0,
-      skipped: 0,
-    };
+  async processUsers() {
+    const stats = new Stats();
 
     try {
-      await fs.writeFile(outputFilePath, CsvParser.#USER_HEADERS.join(','));
-      let isFirstLine = true;
-      let nameIndex = -1;
-      let emailIndex = -1;
-      let ageIndex = -1;
-      for await (const line of readline.createInterface(
-        createReadStream(inputFilePath, { encoding: 'utf-8' })
-      )) {
-        if (isFirstLine) {
-          isFirstLine = false;
-          const headers = line.split(',');
-          nameIndex = headers.indexOf('name');
-          emailIndex = headers.indexOf('email');
-          ageIndex = headers.indexOf('age');
-          if (nameIndex === -1 || emailIndex === -1 || ageIndex === -1) {
-            throw new Error(
-              'CSV file must contain "name", "email", and "age" headers'
-            );
-          }
-          continue;
-        }
-        if (!line.trim()) continue; // Skip empty lines
+      const csv = await fs.readFile(this.inputFilePath, 'utf8');
+      if (!csv.trim()) {
+        return stats;
+      }
 
-        const values = line.split(',');
-        const name = values[nameIndex];
-        const email = values[emailIndex];
-        const age = values[ageIndex];
-        if (!name || !email || !age) {
-          stats.skipped++;
-          continue; // Skip invalid lines
-        }
+      await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
 
-        const user = {
-          name: name.trim(),
-          email: email.trim(),
-          age: parseInt(age.trim(), 10),
-        };
-        const processedLine = CsvParser.#processUser(user);
-        if (processedLine) {
-          await fs.appendFile(outputFilePath, `${EOL}${processedLine}`);
-          stats.processed++;
-        } else {
-          stats.skipped++;
-        }
+      for (const line of csv.split(EOL)) {
+        await this.#processUsersLine(line, stats);
       }
     } catch (error) {
-      await CsvParser.#safeDelete(outputFilePath);
+      await this.#safeDelete(this.outputFilePath);
       throw error;
     }
 
     if (stats.processed === 0) {
-      await CsvParser.#safeDelete(outputFilePath);
+      await this.#safeDelete(this.outputFilePath);
+    }
+
+    return stats;
+  }
+
+  /**
+   * Processes a CSV file of users line by line (performant version using streams)
+   * @returns {Promise<Stats>} - Processing statistics
+   */
+  async processUsersAsStream() {
+    const stats = new Stats();
+
+    try {
+      await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
+      const promises = [];
+      for await (const line of readline.createInterface(
+        createReadStream(this.inputFilePath, { encoding: 'utf-8' })
+      )) {
+        promises.push(this.#processUsersLine(line, stats));
+      }
+      await pMap(promises, () => (p) => p, { concurrency: 1000 });
+    } catch (error) {
+      await this.#safeDelete(this.outputFilePath);
+      throw error;
+    }
+
+    if (stats.processed === 0) {
+      await this.#safeDelete(this.outputFilePath);
     }
 
     return stats;
@@ -93,7 +93,7 @@ export class CsvParser {
    * @param {User} user - User object containing name, email, and age
    * @returns {string|null} - Processed line or null if invalid
    */
-  static #processUser({ name, email, age }) {
+  #processUser({ name, email, age }) {
     if (!email.includes('@')) {
       return null;
     }
@@ -105,11 +105,67 @@ export class CsvParser {
     return [name.toUpperCase(), email, age].join(',');
   }
 
-  static #safeDelete(filePath) {
+  #safeDelete(filePath) {
     return fs.unlink(filePath).catch((error) => {
       if (error.code !== 'ENOENT') {
         console.error(`Error deleting file ${filePath}:`, error);
       }
     });
+  }
+
+  /**
+   * Processes the headers of the CSV file to find the indices of name, email, and age
+   * @private
+   * @param line - The header line of the CSV file
+   * @throws {Error} If the required headers are not found
+   * @returns {void}
+   */
+  #processHeaders(line) {
+    const headers = line.split(',');
+    this.#nameIndex = headers.indexOf('name');
+    this.#emailIndex = headers.indexOf('email');
+    this.#ageIndex = headers.indexOf('age');
+    if (
+      this.#nameIndex === -1 ||
+      this.#emailIndex === -1 ||
+      this.#ageIndex === -1
+    ) {
+      throw new Error(
+        'CSV file must contain "name", "email", and "age" headers'
+      );
+    }
+  }
+
+  async #processUsersLine(line, stats) {
+    if (
+      this.#nameIndex === -1 ||
+      this.#emailIndex === -1 ||
+      this.#ageIndex === -1
+    ) {
+      this.#processHeaders(line);
+      return; // Skip the header line
+    }
+    if (!line.trim()) return; // Skip empty lines
+
+    const values = line.split(',');
+    const name = values[this.#nameIndex];
+    const email = values[this.#emailIndex];
+    const age = values[this.#ageIndex];
+    if (!name || !email || !age) {
+      stats.skipped++;
+      return; // Skip invalid lines
+    }
+
+    const processedLine = this.#processUser({
+      name: name.trim(),
+      email: email.trim(),
+      age: parseInt(age.trim(), 10),
+    });
+    if (processedLine) {
+      await fs.appendFile(this.outputFilePath, `${EOL}${processedLine}`);
+      stats.processed++;
+    } else {
+      stats.skipped++;
+    }
   }
 }
