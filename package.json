@@ -14,8 +14,7 @@
   "author": "Ulises Santana",
   "license": "ISC",
   "dependencies": {
-    "@faker-js/faker": "^9.9.0",
-    "p-map": "^7.0.3"
+    "@faker-js/faker": "^9.9.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
