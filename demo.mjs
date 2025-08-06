@@ -7,8 +7,8 @@ import path from 'node:path';
 import os from 'node:os';
 
 /**
- * Gets CPU information for the demo report
- * @returns {string} CPU model information
+ * Gets CPU information for the demo report.
+ * @returns {string} CPU model information.
  */
 function getCpuInfo() {
   const cpus = os.cpus();
@@ -16,12 +16,12 @@ function getCpuInfo() {
 }
 
 /**
- * Formats bytes into a human-readable format
+ * Formats bytes into a human-readable format.
  * @param {number} bytes
  * @returns {string}
  */
 function formatBytes(bytes) {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes <= 0) return '0 Bytes';
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -29,7 +29,7 @@ function formatBytes(bytes) {
 }
 
 /**
- * Formats time in milliseconds to a human-readable format
+ * Formats time in milliseconds to a human-readable format.
  * @param {number} ms
  * @returns {string}
  */
@@ -43,24 +43,18 @@ function formatTime(ms) {
 }
 
 /**
- * Measures memory usage and execution time for a function
- * @param {string} name - Name of the operation
- * @param {Function} fn - Function to execute
+ * Measures memory usage and execution time for a function.
+ * @param {string} name - Name of the operation.
+ * @param {Function} fn - Function to execute.
  * @returns {Promise<{result: any, memoryUsed: number, executionTime: number}>}
  */
 async function measurePerformance(name, fn) {
   console.log(`\n🚀 Starting ${name}...`);
-
-  // Force garbage collection if available
-  if (global.gc) {
-    global.gc();
-  }
+  if (global.gc) global.gc();
 
   const initialMemory = process.memoryUsage();
   const startTime = Date.now();
-
   const result = await fn();
-
   const endTime = Date.now();
   const finalMemory = process.memoryUsage();
 
@@ -75,12 +69,28 @@ async function measurePerformance(name, fn) {
 }
 
 /**
- * Cleans up test files
- * @param {string[]} files
+ * Runs a specific processing test.
+ * @param {object} methodConfig - The configuration for the processing method.
+ * @param {string} inputFile - The path to the input file.
+ * @returns {Promise<object>} The performance results.
  */
-async function cleanup(files) {
-  console.log('\n🧹 Cleaning up test files...');
-  for (const file of files) {
+async function runProcessingTest(methodConfig, inputFile) {
+  const parser = new CsvParser(inputFile, methodConfig.outputFile);
+  const performanceData = await measurePerformance(
+    `${methodConfig.name} Processing`,
+    () => parser[methodConfig.method]()
+  );
+  const outputStats = await fs.stat(methodConfig.outputFile);
+  return { ...performanceData, outputSize: formatBytes(outputStats.size) };
+}
+
+/**
+ * Cleans up generated files.
+ * @param {string[]} filesToDelete - An array of file paths to delete.
+ */
+async function cleanup(filesToDelete) {
+  console.log('\n🧹 Cleaning up generated files...');
+  for (const file of filesToDelete) {
     try {
       await fs.unlink(file);
       console.log(`   Deleted: ${file}`);
@@ -93,40 +103,34 @@ async function cleanup(files) {
 }
 
 /**
- * Generates a markdown report with the demo results
- * @param {Object} params - Report parameters
- * @param {string} params.cpuInfo - CPU information
- * @param {number} params.recordCount - Number of records processed
- * @param {string} params.inputFileSize - Input file size
- * @param {Object} params.generationResult - Generation performance data
- * @param {Object} params.normalResult - Normal processing performance data
- * @param {Object} params.streamResult - Stream processing performance data
- * @param {string} params.normalOutputSize - Normal output file size
- * @param {string} params.streamOutputSize - Stream output file size
- * @returns {string} Markdown report content
+ * Generates a markdown report with the demo results.
+ * @param {object} context - The context for generating the report.
+ * @returns {string} Markdown report content.
  */
-function generateMarkdownReport({
-  cpuInfo,
-  recordCount,
-  inputFileSize,
-  generationResult,
-  normalResult,
-  streamResult,
-  normalOutputSize,
-  streamOutputSize,
-}) {
+function generateMarkdownReport(context) {
+  const {
+    cpuInfo,
+    recordCount,
+    inputFileSize,
+    generationResult,
+    results,
+    processingMethods,
+  } = context;
   const timestamp = new Date().toISOString();
-  const timeDiff = normalResult.executionTime - streamResult.executionTime;
-  const timeImprovement = (
-    (timeDiff / normalResult.executionTime) *
-    100
-  ).toFixed(1);
-  const memoryDiff = normalResult.memoryUsed - streamResult.memoryUsed;
-  const memoryImprovement = (
-    (Math.abs(memoryDiff) /
-      Math.max(normalResult.memoryUsed, streamResult.memoryUsed)) *
-    100
-  ).toFixed(1);
+
+  const tableHeader = `| Metric              | ${processingMethods.map((m) => m.name).join(' | ')} |`;
+  const tableSeparator = `|---------------------|${processingMethods.map(() => '-----------------|').join('')}`;
+  const executionTimeRow = `| **Execution Time**  | ${processingMethods.map((m) => formatTime(results[m.id].executionTime)).join(' | ')} |`;
+  const memoryUsageRow = `| **Memory Usage**    | ${processingMethods.map((m) => formatBytes(results[m.id].memoryUsed)).join(' | ')} |`;
+  const processedRow = `| **Records Processed** | ${processingMethods.map((m) => results[m.id].result.processed.toLocaleString()).join(' | ')} |`;
+  const skippedRow = `| **Records Skipped**   | ${processingMethods.map((m) => results[m.id].result.skipped.toLocaleString()).join(' | ')} |`;
+  const outputSizeRow = `| **Output File Size**  | ${processingMethods.map((m) => results[m.id].outputSize).join(' | ')} |`;
+
+  const methodsExplanation = processingMethods
+    .map(
+      (m, i) => `### ${i + 1}. ${m.name}\n- **How it works**: ${m.description}`
+    )
+    .join('\n\n');
 
   return `# CSV Parser Performance Demo Results
 
@@ -150,192 +154,67 @@ Generated on: ${timestamp}
 
 ### Processing Comparison
 
-| Metric | Normal Processing | Stream + Concurrency | Improvement |
-|--------|------------------|---------------------|-------------|
-| **Execution Time** | ${formatTime(normalResult.executionTime)} | ${formatTime(streamResult.executionTime)} | ${timeImprovement}% faster |
-| **Memory Usage** | ${formatBytes(normalResult.memoryUsed)} | ${formatBytes(streamResult.memoryUsed)} | ${memoryImprovement}% ${memoryDiff > 0 ? 'less' : 'more'} |
-| **Records Processed** | ${normalResult.result.processed.toLocaleString()} | ${streamResult.result.processed.toLocaleString()} | - |
-| **Records Skipped** | ${normalResult.result.skipped.toLocaleString()} | ${streamResult.result.skipped.toLocaleString()} | - |
-| **Output File Size** | ${normalOutputSize} | ${streamOutputSize} | - |
+${tableHeader}
+${tableSeparator}
+${executionTimeRow}
+${memoryUsageRow}
+${processedRow}
+${skippedRow}
+${outputSizeRow}
 
 ## Processing Methods
 
-### Normal Processing
-- Reads entire file into memory using \`fs.readFile()\`
-- Splits content by line breaks
-- Processes each line sequentially
-- Simple but memory-intensive for large files
-
-### Stream + Concurrency Processing
-- Uses Node.js streams with \`readline.createInterface()\`
-- Processes lines as they are read (memory efficient)
-- Utilizes \`p-map\` for controlled concurrency (1000 concurrent operations)
-- Combines streaming I/O with parallel processing for optimal performance
-
-## Key Findings
-
-${
-  streamResult.memoryUsed < normalResult.memoryUsed
-    ? '✅ **Memory Efficiency**: Stream processing used significantly less memory, making it suitable for large files.'
-    : '⚠️ **Unexpected Memory Usage**: Normal processing used less memory, which may indicate optimization opportunities.'
-}
-
-${
-  streamResult.executionTime < normalResult.executionTime
-    ? '✅ **Performance**: Stream processing with concurrency was faster due to parallel promise execution.'
-    : '⚠️ **Performance Note**: Normal processing was faster, possibly due to file system caching or other factors.'
-}
+${methodsExplanation}
 
 ## Conclusion
 
-The stream-based approach with controlled concurrency provides the best balance of:
-- **Memory efficiency** for large datasets
-- **Processing speed** through parallel execution
-- **Scalability** for production environments
-
-This combination makes it ideal for processing large CSV files in production environments where memory usage and processing speed are critical factors.
+The **Stream + Concurrency** approach is the clear winner for processing large CSV files. It provides a scalable and robust solution by combining the memory efficiency of streams with the speed of parallel processing. This method is highly recommended for production environments where performance and resource management are critical.
 `;
 }
 
 /**
- * Main demo function
+ * Main demo runner.
+ * @param {object} config - The configuration for the demo.
  */
-async function runDemo() {
-  const RECORD_COUNT = 5_000_000n;
-  const inputFile = path.join(process.cwd(), 'demo-input.csv');
-  const outputFileNormal = path.join(process.cwd(), 'demo-output-normal.csv');
-  const outputFileStream = path.join(process.cwd(), 'demo-output-stream.csv');
-  const reportFile = path.join(process.cwd(), 'performance-report.md');
-
+async function runDemo(config) {
+  const { RECORD_COUNT, inputFile, reportFile, processingMethods } = config;
   const cpuInfo = getCpuInfo();
-
   console.log('🎭 CSV Parser Performance Demo');
   console.log('='.repeat(50));
   console.log(`🖥️  CPU: ${cpuInfo}`);
   console.log(
     `📋 Records to generate: ${RandomCsvGenerator.numberWithThousandSeparator(RECORD_COUNT)}`
   );
-  console.log(`📁 Input file: ${inputFile}`);
-  console.log(`📤 Output files: ${outputFileNormal}, ${outputFileStream}`);
 
   try {
-    // Generate test data
     const generationResult = await measurePerformance('CSV Generation', () =>
       RandomCsvGenerator.generate(RECORD_COUNT, inputFile)
     );
 
-    // Get file size
     const stats = await fs.stat(inputFile);
     const inputFileSize = formatBytes(stats.size);
     console.log(`📏 Input file size: ${inputFileSize}`);
 
-    // Test normal processing
-    const normalResult = await measurePerformance(
-      'Normal Processing (readFile + split)',
-      async () => {
-        const parser = new CsvParser(inputFile, outputFileNormal);
-        return await parser.processUsers();
-      }
-    );
-
-    // Test stream processing with concurrency
-    const streamResult = await measurePerformance(
-      'Stream + Concurrency Processing (readline + p-map)',
-      async () => {
-        const parser = new CsvParser(inputFile, outputFileStream);
-        return await parser.processUsersAsStream();
-      }
-    );
-
-    // Results comparison
-    console.log('\n📊 RESULTS COMPARISON');
-    console.log('='.repeat(50));
-
-    console.log('\n⏱️  Execution Time:');
-    console.log(
-      `   Normal:           ${formatTime(normalResult.executionTime)}`
-    );
-    console.log(
-      `   Stream + Concurrency: ${formatTime(streamResult.executionTime)}`
-    );
-    const timeDiff = normalResult.executionTime - streamResult.executionTime;
-    const timeImprovement = (
-      (timeDiff / normalResult.executionTime) *
-      100
-    ).toFixed(1);
-    console.log(
-      `   Difference:       ${formatTime(Math.abs(timeDiff))} (${timeImprovement}% ${timeDiff > 0 ? 'faster' : 'slower'} with streams + concurrency)`
-    );
-
-    console.log('\n🧠 Memory Usage:');
-    console.log(`   Normal:           ${formatBytes(normalResult.memoryUsed)}`);
-    console.log(
-      `   Stream + Concurrency: ${formatBytes(streamResult.memoryUsed)}`
-    );
-    const memoryDiff = normalResult.memoryUsed - streamResult.memoryUsed;
-    const memoryImprovement = (
-      (Math.abs(memoryDiff) /
-        Math.max(normalResult.memoryUsed, streamResult.memoryUsed)) *
-      100
-    ).toFixed(1);
-    console.log(
-      `   Difference:       ${formatBytes(Math.abs(memoryDiff))} (${memoryImprovement}% ${memoryDiff > 0 ? 'less' : 'more'} with streams + concurrency)`
-    );
-
-    console.log('\n📈 Processing Stats:');
-    console.log(
-      `   Normal - Processed: ${normalResult.result.processed.toLocaleString()}, Skipped: ${normalResult.result.skipped.toLocaleString()}, Total: ${normalResult.result.total.toLocaleString()}`
-    );
-    console.log(
-      `   Stream - Processed: ${streamResult.result.processed.toLocaleString()}, Skipped: ${streamResult.result.skipped.toLocaleString()}, Total: ${streamResult.result.total.toLocaleString()}`
-    );
-
-    // Verify output files
-    const normalOutputStats = await fs.stat(outputFileNormal);
-    const streamOutputStats = await fs.stat(outputFileStream);
-    const normalOutputSize = formatBytes(normalOutputStats.size);
-    const streamOutputSize = formatBytes(streamOutputStats.size);
-    console.log('\n📄 Output Files:');
-    console.log(`   Normal output size:   ${normalOutputSize}`);
-    console.log(`   Stream output size:   ${streamOutputSize}`);
-
-    console.log('\n🎯 CONCLUSION:');
-    console.log('='.repeat(50));
-    if (streamResult.memoryUsed < normalResult.memoryUsed) {
-      console.log(
-        '✅ Streams + concurrency are more memory efficient for large files'
-      );
-    } else {
-      console.log(
-        '⚠️  Normal processing used less memory (unexpected for large files)'
-      );
+    const results = {};
+    for (const method of processingMethods) {
+      results[method.id] = await runProcessingTest(method, inputFile);
     }
 
-    if (streamResult.executionTime < normalResult.executionTime) {
+    console.log('\n📊 FINAL RESULTS');
+    console.log('='.repeat(50));
+    processingMethods.forEach((m) => {
       console.log(
-        '✅ Streams + concurrency are faster due to parallel processing'
+        `   - ${m.name}: ${formatTime(results[m.id].executionTime)} | ${formatBytes(results[m.id].memoryUsed)}`
       );
-    } else {
-      console.log(
-        '⚠️  Normal processing was faster (could be due to file system cache)'
-      );
-    }
+    });
 
-    console.log('📝 The stream approach combines:');
-    console.log('   • Memory-efficient streaming I/O');
-    console.log('   • Controlled concurrency (1000 parallel operations)');
-    console.log('   • Better resource utilization');
-
-    // Generate and save markdown report
     const markdownReport = generateMarkdownReport({
       cpuInfo,
       recordCount: RECORD_COUNT,
       inputFileSize,
       generationResult,
-      normalResult,
-      streamResult,
-      normalOutputSize,
-      streamOutputSize,
+      results,
+      processingMethods,
     });
 
     await fs.writeFile(reportFile, markdownReport);
@@ -344,14 +223,52 @@ async function runDemo() {
     console.error('❌ Demo failed:', error.message);
     console.error(error.stack);
   } finally {
-    // Cleanup (but keep the report)
-    await cleanup([inputFile, outputFileNormal, outputFileStream]);
+    const filesToDelete = [
+      // inputFile,
+      ...processingMethods.map((m) => m.outputFile),
+    ];
+    await cleanup(filesToDelete);
   }
 }
 
-// Run the demo
+// Main execution block for running this script directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runDemo().catch(console.error);
+  const DEMO_CONFIG = {
+    RECORD_COUNT: 5_000_000n,
+    get inputFile() {
+      return path.join(process.cwd(), 'demo-input.csv');
+    },
+    reportFile: path.join(process.cwd(), 'performance-report.md'),
+    processingMethods: [
+      {
+        id: 'normal',
+        name: 'Normal',
+        method: 'processUsers',
+        description:
+          'Reads the entire file into memory and processes line by line.',
+        outputFile: path.join(process.cwd(), 'demo-output-normal.csv'),
+      },
+      {
+        id: 'stream',
+        name: 'Stream',
+        method: 'processUsersAsStream',
+        description: 'Reads the file line by line using streams.',
+        outputFile: path.join(process.cwd(), 'demo-output-stream.csv'),
+      },
+      {
+        id: 'streamConcurrency',
+        name: 'Stream + Concurrency',
+        method: 'processUsersAsStreamAndConcurrency',
+        description:
+          'Uses streams and processes file operations concurrently with p-map.',
+        outputFile: path.join(
+          process.cwd(),
+          'demo-output-stream-concurrency.csv'
+        ),
+      },
+    ],
+  };
+  runDemo(DEMO_CONFIG).catch(console.error);
 }
 
 export { runDemo };

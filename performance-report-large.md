@@ -1,6 +1,6 @@
 # CSV Parser Performance Demo Results
 
-Generated on: 2025-08-06T10:15:03.202Z
+Generated on: 2025-08-06T11:53:12.734Z
 
 ## System Information
 - **CPU**: Apple M1
@@ -9,34 +9,31 @@ Generated on: 2025-08-06T10:15:03.202Z
 - **Total Memory**: 16 GB
 
 ## Test Parameters
-- **Records Processed**: 5.000.000
-- **Input File Size**: 384.22 MB
+- **Records Processed**: 100.000.000
+- **Input File Size**: 7.5 GB
 
 ## Performance Results
 
 ### CSV Generation
-- **Time**: 37.33s
-- **Memory Used**: 1.29 MB
+- **Time**: 12m 24.08s
+- **Memory Used**: 4.79 MB
 
 ### Processing Comparison
 
-| Metric              | Normal | Stream | Stream + Concurrency |
-|---------------------|-----------------|-----------------|-----------------|
-| **Execution Time**  | 2m 11.94s | 2m 12.31s | 39.38s |
-| **Memory Usage**    | 577.22 MB | 0 Bytes | 14.49 MB |
-| **Records Processed** | 3,375,425 | 3,375,425 | 3,375,425 |
-| **Records Skipped**   | 1,624,575 | 1,624,575 | 1,624,575 |
-| **Output File Size**  | 137.73 MB | 137.73 MB | 137.73 MB |
+| Metric              | Stream | Stream + Concurrency |
+|---------------------|-----------------|-----------------|
+| **Execution Time**  | 43m 21.03s | 13m 25.36s |
+| **Memory Usage**    | 5.71 MB | 0 Bytes |
+| **Records Processed** | 67,502,249 | 67,502,249 |
+| **Records Skipped**   | 32,497,751 | 32,497,751 |
+| **Output File Size**  | 2.69 GB | 2.69 GB |
 
 ## Processing Methods
 
-### 1. Normal
-- **How it works**: Reads the entire file into memory and processes line by line.
-
-### 2. Stream
+### 1. Stream
 - **How it works**: Reads the file line by line using streams.
 
-### 3. Stream + Concurrency
+### 2. Stream + Concurrency
 - **How it works**: Uses streams and processes file operations concurrently with p-map.
 
 ## Conclusion

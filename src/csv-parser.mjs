@@ -4,7 +4,6 @@ import { createReadStream } from 'node:fs';
 import * as readline from 'node:readline';
 import { EOL } from 'node:os';
 import { Stats } from './stats.mjs';
-import pMap from 'p-map';
 
 /**
  * @typedef {Object} User
@@ -66,16 +65,57 @@ export class CsvParser {
    */
   async processUsersAsStream() {
     const stats = new Stats();
+    const lines = readline.createInterface(
+      createReadStream(this.inputFilePath, { encoding: 'utf-8' })
+    );
+
+    try {
+      await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
+
+      for await (const line of lines) {
+        await this.#processUsersLine(line, stats);
+      }
+    } catch (error) {
+      await this.#safeDelete(this.outputFilePath);
+      throw error;
+    }
+
+    if (stats.processed === 0) {
+      await this.#safeDelete(this.outputFilePath);
+    }
+
+    return stats;
+  }
+
+  /**
+   * Processes a CSV file of users line by line (performant version using streams and concurrency)
+   * This method reads the input file line by line, processes each user, and writes valid users to the output file.
+   * It uses a concurrency limit to avoid overwhelming the system with too many simultaneous file operations.
+   * @returns {Promise<Stats>} - Processing statistics
+   */
+  async processUsersAsStreamAndConcurrency() {
+    const stats = new Stats();
+    const batchSize = 1000; // Number of lines to process concurrently
+    const lines = readline.createInterface(
+      createReadStream(this.inputFilePath, { encoding: 'utf-8' })
+    );
 
     try {
       await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
       const promises = [];
-      for await (const line of readline.createInterface(
-        createReadStream(this.inputFilePath, { encoding: 'utf-8' })
-      )) {
+
+      for await (const line of lines) {
         promises.push(this.#processUsersLine(line, stats));
+
+        if (promises.length >= batchSize) {
+          await Promise.allSettled(promises);
+          promises.length = 0;
+        }
       }
-      await pMap(promises, () => (p) => p, { concurrency: 1000 });
+
+      if (promises.length > 0) {
+        await Promise.allSettled(promises);
+      }
     } catch (error) {
       await this.#safeDelete(this.outputFilePath);
       throw error;
