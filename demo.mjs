@@ -46,26 +46,48 @@ function formatTime(ms) {
  * Measures memory usage and execution time for a function.
  * @param {string} name - Name of the operation.
  * @param {Function} fn - Function to execute.
- * @returns {Promise<{result: any, memoryUsed: number, executionTime: number}>}
+ * @returns {Promise<{result: any, peakMemory: number, executionTime: number}>}
  */
 async function measurePerformance(name, fn) {
   console.log(`\n🚀 Starting ${name}...`);
-  if (global.gc) global.gc();
+  if (global.gc) {
+    global.gc();
+    await new Promise((resolve) =>
+      setTimeout(() => {
+        console.log('🚮 Garbage collector executed.');
+        resolve();
+      }, 1000)
+    );
+  } else {
+    console.warn(
+      '⚠️ Run Node.js with --expose-gc to enable manual garbage collection.'
+    );
+  }
 
-  const initialMemory = process.memoryUsage();
+  let peakMemory = 0;
+  const interval = setInterval(() => {
+    const currentMemory = process.memoryUsage().heapUsed;
+    if (currentMemory > peakMemory) {
+      peakMemory = currentMemory;
+    }
+  }, 50); // Sample memory usage every 50ms
+
   const startTime = Date.now();
   const result = await fn();
   const endTime = Date.now();
-  const finalMemory = process.memoryUsage();
+  clearInterval(interval);
 
   const executionTime = endTime - startTime;
-  const memoryUsed = finalMemory.heapUsed - initialMemory.heapUsed;
+  // Final check in case the last memory usage was the peak
+  const finalMemory = process.memoryUsage().heapUsed;
+  if (finalMemory > peakMemory) {
+    peakMemory = finalMemory;
+  }
 
   console.log(`✅ ${name} completed in ${formatTime(executionTime)}`);
-  console.log(`📊 Memory used: ${formatBytes(memoryUsed)}`);
-  console.log(`📈 Peak memory: ${formatBytes(finalMemory.heapUsed)}`);
+  console.log(`📈 Peak memory usage: ${formatBytes(peakMemory)}`);
 
-  return { result, memoryUsed, executionTime };
+  return { result, peakMemory, executionTime };
 }
 
 /**
@@ -121,7 +143,7 @@ function generateMarkdownReport(context) {
   const tableHeader = `| Metric              | ${processingMethods.map((m) => m.name).join(' | ')} |`;
   const tableSeparator = `|---------------------|${processingMethods.map(() => '-----------------|').join('')}`;
   const executionTimeRow = `| **Execution Time**  | ${processingMethods.map((m) => formatTime(results[m.id].executionTime)).join(' | ')} |`;
-  const memoryUsageRow = `| **Memory Usage**    | ${processingMethods.map((m) => formatBytes(results[m.id].memoryUsed)).join(' | ')} |`;
+  const memoryUsageRow = `| **Peak Memory**     | ${processingMethods.map((m) => formatBytes(results[m.id].peakMemory)).join(' | ')} |`;
   const processedRow = `| **Records Processed** | ${processingMethods.map((m) => results[m.id].result.processed.toLocaleString()).join(' | ')} |`;
   const skippedRow = `| **Records Skipped**   | ${processingMethods.map((m) => results[m.id].result.skipped.toLocaleString()).join(' | ')} |`;
   const outputSizeRow = `| **Output File Size**  | ${processingMethods.map((m) => results[m.id].outputSize).join(' | ')} |`;
@@ -150,7 +172,7 @@ Generated on: ${timestamp}
 
 ### CSV Generation
 - **Time**: ${formatTime(generationResult.executionTime)}
-- **Memory Used**: ${formatBytes(generationResult.memoryUsed)}
+- **Peak Memory Used**: ${formatBytes(generationResult.peakMemory)}
 
 ### Processing Comparison
 
@@ -204,7 +226,7 @@ async function runDemo(config) {
     console.log('='.repeat(50));
     processingMethods.forEach((m) => {
       console.log(
-        `   - ${m.name}: ${formatTime(results[m.id].executionTime)} | ${formatBytes(results[m.id].memoryUsed)}`
+        `   - ${m.name}: ${formatTime(results[m.id].executionTime)} | ${formatBytes(results[m.id].peakMemory)}`
       );
     });
 
@@ -224,7 +246,7 @@ async function runDemo(config) {
     console.error(error.stack);
   } finally {
     const filesToDelete = [
-      // inputFile,
+      inputFile,
       ...processingMethods.map((m) => m.outputFile),
     ];
     await cleanup(filesToDelete);

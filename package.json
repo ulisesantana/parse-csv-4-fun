@@ -9,7 +9,9 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "generate:huge-csv": "node generate-input.mjs 100_000_000 ./huge.csv"
+    "generate:huge-csv": "node generate-input.mjs 100_000_000 ./huge.csv",
+    "demo": "node --expose-gc demo.mjs",
+    "demo:large": "node --expose-gc demo-large.mjs"
   },
   "author": "Ulises Santana",
   "license": "ISC",
