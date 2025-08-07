@@ -43,8 +43,10 @@ export class CsvParser {
       }
 
       await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
+      const [headers, ...lines] = csv.split(EOL);
+      this.#processHeaders(headers);
 
-      for (const line of csv.split(EOL)) {
+      for (const line of lines) {
         await this.#processUsersLine(line, stats);
       }
     } catch (error) {
@@ -65,12 +67,12 @@ export class CsvParser {
    */
   async processUsersAsStream() {
     const stats = new Stats();
-    const lines = readline.createInterface(
-      createReadStream(this.inputFilePath, { encoding: 'utf-8' })
-    );
+    const lines = this.#getLines();
 
     try {
       await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
+      const { value } = await lines.next();
+      this.#processHeaders(value);
 
       for await (const line of lines) {
         await this.#processUsersLine(line, stats);
@@ -94,22 +96,22 @@ export class CsvParser {
    * @returns {Promise<Stats>} - Processing statistics
    */
   async processUsersAsStreamAndConcurrency() {
-    const stats = new Stats();
     const batchSize = 1000; // Number of lines to process concurrently
-    const lines = readline.createInterface(
-      createReadStream(this.inputFilePath, { encoding: 'utf-8' })
-    );
+    const stats = new Stats();
+    const lines = this.#getLines();
 
     try {
       await fs.writeFile(this.outputFilePath, this.#USER_HEADERS.join(','));
-      const promises = [];
+      const { value } = await lines.next();
+      this.#processHeaders(value);
+      let promises = [];
 
       for await (const line of lines) {
         promises.push(this.#processUsersLine(line, stats));
 
         if (promises.length >= batchSize) {
           await Promise.allSettled(promises);
-          promises.length = 0;
+          promises = [];
         }
       }
 
@@ -126,6 +128,19 @@ export class CsvParser {
     }
 
     return stats;
+  }
+
+  /**
+   * Creates an async iterator to read lines from the input file
+   * @private
+   * @returns {NodeJS.AsyncIterator<string>}
+   */
+  #getLines() {
+    const rl = readline.createInterface({
+      input: createReadStream(this.inputFilePath, { encoding: 'utf-8' }),
+      crlfDelay: Infinity,
+    });
+    return rl[Symbol.asyncIterator]();
   }
 
   /**
@@ -170,6 +185,7 @@ export class CsvParser {
       this.#emailIndex === -1 ||
       this.#ageIndex === -1
     ) {
+      console.error('Error in header line', line);
       throw new Error(
         'CSV file must contain "name", "email", and "age" headers'
       );
@@ -177,14 +193,6 @@ export class CsvParser {
   }
 
   async #processUsersLine(line, stats) {
-    if (
-      this.#nameIndex === -1 ||
-      this.#emailIndex === -1 ||
-      this.#ageIndex === -1
-    ) {
-      this.#processHeaders(line);
-      return; // Skip the header line
-    }
     if (!line.trim()) return; // Skip empty lines
 
     const values = line.split(',');

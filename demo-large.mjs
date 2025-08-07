@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { runDemo } from './demo.mjs';
 import path from 'node:path';
+import { DemoRunner } from './src/demo-runner.mjs';
 
 const LARGE_DEMO_CONFIG = {
   RECORD_COUNT: 100_000_000n,
@@ -29,4 +29,5 @@ const LARGE_DEMO_CONFIG = {
   ],
 };
 
-runDemo(LARGE_DEMO_CONFIG).catch(console.error);
+const demo = new DemoRunner(LARGE_DEMO_CONFIG);
+demo.run().catch(console.error);

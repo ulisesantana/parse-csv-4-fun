@@ -16,7 +16,7 @@ export class RandomCsvGenerator {
   static generateFakeUser() {
     const email = faker.internet.email();
     return {
-      id: faker.string.uuid(),
+      id: faker.string.hexadecimal({ length: 32 }),
       name: faker.person.fullName(),
       email: Math.random() > 0.1 ? email : email.replace(/@/, '=_='),
       age:
@@ -138,6 +138,7 @@ export class RandomCsvGenerator {
     return async function* (source) {
       const logBatch = 1_000_000;
       let startTime = Date.now();
+
       for await (const index of source) {
         if (index === 1) {
           yield Buffer.from(Object.keys(generateRecord()).join(',') + EOL);
