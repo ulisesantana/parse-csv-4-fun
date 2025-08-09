@@ -1,6 +1,6 @@
 # CSV Parser Performance Demo Results
 
-Generated on: 2025-08-07T01:19:34.415Z
+Generated on: 2025-08-07T23:17:09.965Z
 
 ## System Information
 - **CPU**: Apple M1
@@ -15,17 +15,19 @@ Generated on: 2025-08-07T01:19:34.415Z
 ## Performance Results
 
 ### CSV Generation
-- **Time**: 13m 44.66s
-- **Peak Memory Used**: 33.18 MB
+- **Time**: 13m 30.88s
+- **Peak Memory Used**: 33.21 MB
+- **CPU Usage**: 815374.97ms (User: 800897.27ms, System: 14477.69ms)
 
 ### Processing Comparison
 
 | Metric              | Stream | Stream + Concurrency |
 |---------------------|-----------------|-----------------|
-| **Execution Time**  | 43m 27.12s | 13m 44.32s |
-| **Peak Memory**     | 37.65 MB | 42.23 MB |
-| **Records Processed** | 67,507,675 | 67,507,675 |
-| **Records Skipped**   | 32,492,325 | 32,492,325 |
+| **Execution Time**  | 48m 12.11s | 14m 56.93s |
+| **Peak Memory**     | 37.6 MB | 42.43 MB |
+| **CPU Usage**       | 3136748.80ms (User: 1035077.21ms, System: 2101671.58ms) | 2710530.31ms (User: 856084.55ms, System: 1854445.76ms) |
+| **Records Processed** | 67,504,118 | 67,504,118 |
+| **Records Skipped**   | 32,495,882 | 32,495,882 |
 | **Output File Size**  | 2.69 GB | 2.69 GB |
 
 ## Processing Methods

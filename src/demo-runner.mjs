@@ -54,10 +54,24 @@ export class DemoRunner {
   }
 
   /**
-   * Measures memory usage and execution time for a function.
+   * Formats CPU usage to a human-readable format.
+   * @param {number} userCpu - User CPU time in microseconds
+   * @param {number} systemCpu - System CPU time in microseconds
+   * @returns {string}
+   */
+  #formatCpuUsage(userCpu, systemCpu) {
+    const totalCpuMs = (userCpu + systemCpu) / 1000; // Convert to milliseconds
+    const userCpuMs = userCpu / 1000;
+    const systemCpuMs = systemCpu / 1000;
+
+    return `${totalCpuMs.toFixed(2)}ms (User: ${userCpuMs.toFixed(2)}ms, System: ${systemCpuMs.toFixed(2)}ms)`;
+  }
+
+  /**
+   * Measures memory usage, CPU usage and execution time for a function.
    * @param {string} name - Name of the operation.
    * @param {Function} fn - Function to execute.
-   * @returns {Promise<{result: any, peakMemory: number, executionTime: number}>}
+   * @returns {Promise<{result: any, peakMemory: number, executionTime: number, cpuUsage: {user: number, system: number}}>}
    */
   async #measurePerformance(name, fn) {
     console.log(`\n🚀 Starting ${name}...`);
@@ -83,9 +97,11 @@ export class DemoRunner {
       }
     }, 50); // Sample memory usage every 50ms
 
+    const startCpuUsage = process.cpuUsage();
     const startTime = Date.now();
     const result = await fn();
     const endTime = Date.now();
+    const endCpuUsage = process.cpuUsage(startCpuUsage);
     clearInterval(interval);
 
     const executionTime = endTime - startTime;
@@ -97,8 +113,11 @@ export class DemoRunner {
 
     console.log(`✅ ${name} completed in ${this.#formatTime(executionTime)}`);
     console.log(`📈 Peak memory usage: ${this.#formatBytes(peakMemory)}`);
+    console.log(
+      `⚡ CPU usage: ${this.#formatCpuUsage(endCpuUsage.user, endCpuUsage.system)}`
+    );
 
-    return { result, peakMemory, executionTime };
+    return { result, peakMemory, executionTime, cpuUsage: endCpuUsage };
   }
 
   /**
@@ -158,6 +177,7 @@ export class DemoRunner {
     const tableSeparator = `|---------------------|${processingMethods.map(() => '-----------------|').join('')}`;
     const executionTimeRow = `| **Execution Time**  | ${processingMethods.map((m) => this.#formatTime(results[m.id].executionTime)).join(' | ')} |`;
     const memoryUsageRow = `| **Peak Memory**     | ${processingMethods.map((m) => this.#formatBytes(results[m.id].peakMemory)).join(' | ')} |`;
+    const cpuUsageRow = `| **CPU Usage**       | ${processingMethods.map((m) => this.#formatCpuUsage(results[m.id].cpuUsage.user, results[m.id].cpuUsage.system)).join(' | ')} |`;
     const processedRow = `| **Records Processed** | ${processingMethods.map((m) => results[m.id].result.processed.toLocaleString()).join(' | ')} |`;
     const skippedRow = `| **Records Skipped**   | ${processingMethods.map((m) => results[m.id].result.skipped.toLocaleString()).join(' | ')} |`;
     const outputSizeRow = `| **Output File Size**  | ${processingMethods.map((m) => results[m.id].outputSize).join(' | ')} |`;
@@ -188,6 +208,7 @@ Generated on: ${timestamp}
 ### CSV Generation
 - **Time**: ${this.#formatTime(generationResult.executionTime)}
 - **Peak Memory Used**: ${this.#formatBytes(generationResult.peakMemory)}
+- **CPU Usage**: ${this.#formatCpuUsage(generationResult.cpuUsage.user, generationResult.cpuUsage.system)}
 
 ### Processing Comparison
 
@@ -195,6 +216,7 @@ ${tableHeader}
 ${tableSeparator}
 ${executionTimeRow}
 ${memoryUsageRow}
+${cpuUsageRow}
 ${processedRow}
 ${skippedRow}
 ${outputSizeRow}
@@ -242,7 +264,7 @@ The **Stream + Concurrency** approach is the clear winner for processing large C
       console.log('='.repeat(50));
       processingMethods.forEach((m) => {
         console.log(
-          `   - ${m.name}: ${this.#formatTime(results[m.id].executionTime)} | ${this.#formatBytes(results[m.id].peakMemory)}`
+          `   - ${m.name}: ${this.#formatTime(results[m.id].executionTime)} | ${this.#formatBytes(results[m.id].peakMemory)} | ${this.#formatCpuUsage(results[m.id].cpuUsage.user, results[m.id].cpuUsage.system)}`
         );
       });
 

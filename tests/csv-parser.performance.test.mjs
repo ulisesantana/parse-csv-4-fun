@@ -23,18 +23,29 @@ describe('CSV Parser Performance tests', () => {
       await RandomCsvGenerator.generate(lineCount, largeInputFile);
 
       const initialMemory = process.memoryUsage().heapUsed;
+      const initialCpuUsage = process.cpuUsage();
       const start = Date.now();
 
       const stats = await new CsvParser(
         largeInputFile,
         largeOutputFile
-      ).processUsers();
+      ).processUsersAsStreamAndConcurrency();
+
+      const end = Date.now();
+      const endCpuUsage = process.cpuUsage(initialCpuUsage);
+
       console.log(
-        `CSV Parsed with ${RandomCsvGenerator.numberWithThousandSeparator(lineCount)} records in ${(Date.now() - start) / 1000} seconds.`
+        `CSV Parsed with ${RandomCsvGenerator.numberWithThousandSeparator(lineCount)} records in ${(end - start) / 1000} seconds.`
       );
 
       const finalMemory = process.memoryUsage().heapUsed;
       const memoryUsed = (finalMemory - initialMemory) / 1024 / 1024; // MB
+      const cpuUsedMs = (endCpuUsage.user + endCpuUsage.system) / 1000; // Convert to milliseconds
+
+      console.log(`Memory usage: ${memoryUsed.toFixed(2)} MB`);
+      console.log(
+        `CPU usage: ${cpuUsedMs.toFixed(2)}ms (User: ${(endCpuUsage.user / 1000).toFixed(2)}ms, System: ${(endCpuUsage.system / 1000).toFixed(2)}ms)`
+      );
 
       assert.strictEqual(BigInt(stats.total), lineCount);
 
