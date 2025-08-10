@@ -29,8 +29,7 @@ const DEMO_CONFIG = {
       id: 'streamConcurrency',
       name: 'Stream + Concurrency',
       method: 'processUsersAsStreamAndConcurrency',
-      description:
-        'Uses streams and processes file operations concurrently with p-map.',
+      description: 'Uses streams and processes file operations concurrently.',
       outputFile: path.join(
         process.cwd(),
         'demo-output-stream-concurrency.csv'
