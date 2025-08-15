@@ -21,7 +21,7 @@ export class DemoRunner {
    * Gets CPU information for the demo report.
    * @returns {string} CPU model information.
    */
-  #getCpuInfo() {
+  static getCpuInfo() {
     const cpus = os.cpus();
     return cpus[0]?.model || 'Unknown CPU';
   }
@@ -237,7 +237,7 @@ The **Stream + Concurrency** approach is the clear winner for processing large C
   async run() {
     const { RECORD_COUNT, inputFile, reportFile, processingMethods } =
       this.#config;
-    const cpuInfo = this.#getCpuInfo();
+    const cpuInfo = DemoRunner.getCpuInfo();
     console.log('🎭 CSV Parser Performance Demo');
     console.log('='.repeat(50));
     console.log(`🖥️  CPU: ${cpuInfo}`);

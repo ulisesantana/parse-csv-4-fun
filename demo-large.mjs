@@ -3,10 +3,15 @@
 import path from 'node:path';
 import { DemoRunner } from './src/demo-runner.mjs';
 
+const reportSuffix = DemoRunner.getCpuInfo().toLowerCase().replace(' ', '-');
+
 const LARGE_DEMO_CONFIG = {
   RECORD_COUNT: 100_000_000n,
   inputFile: path.join(process.cwd(), 'demo-input-large.csv'),
-  reportFile: path.join(process.cwd(), 'performance-report-large.md'),
+  reportFile: path.join(
+    process.cwd(),
+    `performance-report-large.${reportSuffix}.md`
+  ),
   processingMethods: [
     {
       id: 'stream',

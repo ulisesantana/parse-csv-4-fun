@@ -3,12 +3,14 @@
 import path from 'node:path';
 import { DemoRunner } from './src/demo-runner.mjs';
 
+const reportSuffix = DemoRunner.getCpuInfo().toLowerCase().replace(' ', '-');
+
 const DEMO_CONFIG = {
   RECORD_COUNT: 5_000_000n,
   get inputFile() {
     return path.join(process.cwd(), 'demo-input.csv');
   },
-  reportFile: path.join(process.cwd(), 'performance-report.md'),
+  reportFile: path.join(process.cwd(), `performance-report.${reportSuffix}.md`),
   processingMethods: [
     {
       id: 'normal',
